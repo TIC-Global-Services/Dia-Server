@@ -1,0 +1,25 @@
+import { join } from 'node:path';
+import { DataSource } from 'typeorm';
+
+// Used by the TypeORM CLI (`npm run migration:*`), always against the compiled output in dist/.
+// Reads the same DB_* variables as the app. Node 21+ can load .env itself.
+try {
+  process.loadEnvFile();
+} catch {
+  // no .env file: the variables come from the environment
+}
+
+const env = process.env;
+
+export default new DataSource({
+  type: 'postgres',
+  host: env.DB_HOST ?? 'localhost',
+  port: Number(env.DB_PORT ?? 5432),
+  username: env.DB_USER ?? 'dia',
+  password: env.DB_PASSWORD ?? 'dia',
+  database: env.DB_NAME ?? 'dia',
+  ssl: env.DB_SSL === 'true',
+  entities: [join(import.meta.dirname, '..', '**', '*.entity.js')],
+  migrations: [join(import.meta.dirname, 'migrations', '*.js')],
+  migrationsTransactionMode: 'each',
+});
