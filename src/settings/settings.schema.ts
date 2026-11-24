@@ -64,6 +64,22 @@ export const SETTING_GROUPS: SettingGroup[] = [
     ],
   },
   {
+    id: 'pricing',
+    title: 'Metal pricing',
+    description: 'Pieces with a net metal weight are priced as (weight x rate + making charge + diamond + stones) x 1.03. Saving a new rate reprices every piece of that metal.',
+    sections: [
+      {
+        id: 'metalrates',
+        title: 'Metal rates per gram (INR)',
+        fields: [
+          { key: 'GOLD_RATE_PER_GRAM', label: 'Gold', type: 'number', help: 'The rate for the purity you sell (e.g. 22K or 18K).' },
+          { key: 'SILVER_RATE_PER_GRAM', label: 'Silver', type: 'number' },
+          { key: 'PLATINUM_RATE_PER_GRAM', label: 'Platinum', type: 'number' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'email',
     title: 'Email',
     description: 'Password links, verification and order emails. Sent with Resend.',

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { METALS } from '../../../common/jewellery-price.js';
 import { slugSchema } from '../../categories/dto/create-category.dto.js';
 import { ProductStatus } from '../entities/product.entity.js';
 
@@ -12,6 +13,13 @@ export const createProductSchema = z.object({
   /** Omit for price on request. */
   price: money.nullish(),
   compareAtPrice: money.nullish(),
+  /** Net metal weight (g). When set, price is calculated from the metal rate and `price` is ignored. */
+  netMetalWeight: z.number().positive().max(100_000).multipleOf(0.001).nullish(),
+  metal: z.enum(METALS).default('gold'),
+  diamondCarats: z.number().min(0).max(10_000).multipleOf(0.001).default(0),
+  diamondRatePerCarat: money.default(0),
+  makingChargePercent: z.number().min(0).max(100).multipleOf(0.01).default(0),
+  stoneCharges: money.default(0),
   weightGrams: z.number().int().min(0).max(1_000_000).default(0),
   currency: z.string().length(3).toUpperCase().default('INR'),
   status: z.enum(ProductStatus).default(ProductStatus.DRAFT),

@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { jewelleryPrice, METAL_RATE_KEY, type Metal } from '../../common/jewellery-price.js';
+import { METAL_RATE_CHANGED, SettingsService } from '../../settings/settings.service.js';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
 import { rethrowDbError } from '../../common/db-errors.js';
 import { likeOf, paginateQb, type Paginated } from '../../common/pagination.js';
 import { slugify } from '../../common/slug.js';
@@ -32,7 +34,50 @@ export class ProductsService {
     private readonly categories: CategoriesService,
     private readonly redis: RedisService,
     private readonly events: EventEmitter2,
+    private readonly settings: SettingsService,
   ) {}
+
+  /** Current rate per gram of a metal, or null when none is set. */
+  private metalRate(metal: Metal): number | null {
+    const r = this.settings.number(METAL_RATE_KEY[metal], 0);
+    return r > 0 ? r : null;
+  }
+
+  /** Price from the formula, or undefined when the piece is not metal-priced or its metal has no rate. */
+  private formulaPrice(p: {
+    netMetalWeight?: number | null;
+    metal?: Metal;
+    makingChargePercent?: number;
+    stoneCharges?: number;
+    diamondCarats?: number;
+    diamondRatePerCarat?: number;
+  }): number | undefined {
+    const rate = this.metalRate(p.metal ?? 'gold');
+    if (!p.netMetalWeight || rate === null) return undefined;
+    return jewelleryPrice({
+      netMetalWeight: p.netMetalWeight,
+      metalRate: rate,
+      makingChargePercent: p.makingChargePercent ?? 0,
+      stoneCharges: p.stoneCharges ?? 0,
+      diamondCarats: p.diamondCarats ?? 0,
+      diamondRatePerCarat: p.diamondRatePerCarat ?? 0,
+    }).total;
+  }
+
+  /** Reprice every metal-priced piece at the current rates. */
+  @OnEvent(METAL_RATE_CHANGED)
+  async repriceMetals(): Promise<number> {
+    const items = await this.repo.find({ where: { netMetalWeight: Not(IsNull()) }, relations: { category: true, stock: true } });
+    for (const product of items) {
+      const price = this.formulaPrice(product);
+      if (price === undefined || price === product.price) continue;
+      await this.repo.update(product.id, { price });
+      product.price = price;
+      await this.redis.forget(slugKey(product.slug));
+      await this.publish(product);
+    }
+    return items.length;
+  }
 
   async create(dto: CreateProductDto): Promise<Product> {
     if (dto.categoryId) await this.categories.findOne(dto.categoryId);
@@ -44,6 +89,7 @@ export class ProductsService {
         const product = await manager.save(
           manager.create(Product, {
             ...fields,
+            price: this.formulaPrice(fields) ?? fields.price,
             slug: fields.slug ?? slugify(fields.name),
           }),
         );
@@ -162,8 +208,10 @@ export class ProductsService {
   async update(id: string, dto: UpdateProductDto): Promise<Product> {
     const existing = await this.findOne(id);
     if (dto.categoryId) await this.categories.findOne(dto.categoryId);
+    const merged = { ...existing, ...dto };
+    const price = this.formulaPrice(merged);
     try {
-      await this.repo.update(id, dto);
+      await this.repo.update(id, price === undefined ? dto : { ...dto, price });
     } catch (err) {
       rethrowDbError(err, 'Product sku or slug already exists');
     }

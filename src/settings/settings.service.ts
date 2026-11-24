@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { jwtSecret } from '../auth/auth.constants.js';
@@ -9,6 +10,9 @@ import { Setting } from './entities/setting.entity.js';
 import { FIELD_BY_KEY, SETTING_GROUPS, type SettingField } from './settings.schema.js';
 
 const REFRESH_MS = 15_000;
+
+/** Emitted after a metal rate is saved, so pieces can be repriced. */
+export const METAL_RATE_CHANGED = 'settings.metalRateChanged';
 
 export interface FieldView {
   key: string;
@@ -40,6 +44,7 @@ export class SettingsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectRepository(Setting) private readonly repo: Repository<Setting>,
     private readonly config: ConfigService<Env, true>,
+    private readonly events: EventEmitter2,
   ) {
     // Secrets are encrypted with a key derived from SETTINGS_ENCRYPTION_KEY, or else the JWT secret.
     const base = process.env.SETTINGS_ENCRYPTION_KEY ?? jwtSecret(config);
@@ -135,6 +140,7 @@ export class SettingsService implements OnModuleInit, OnModuleDestroy {
       await this.repo.save({ key, value: secret ? this.encrypt(text) : text, secret, updatedBy: actorId });
     }
     await this.reload();
+    if (group === 'pricing') await this.events.emitAsync(METAL_RATE_CHANGED);
     return this.view();
   }
 

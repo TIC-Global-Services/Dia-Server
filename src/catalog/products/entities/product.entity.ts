@@ -7,6 +7,7 @@ import {
   OneToOne,
   type Relation,
 } from 'typeorm';
+import type { Metal } from '../../../common/jewellery-price.js';
 import { BaseEntity } from '../../../common/base.entity.js';
 import { Category } from '../../categories/entities/category.entity.js';
 import { Stock } from '../../stock/entities/stock.entity.js';
@@ -57,6 +58,33 @@ export class Product extends BaseEntity {
     transformer: numeric,
   })
   compareAtPrice: number | null;
+
+  /**
+   * Metal pricing inputs. When netMetalWeight is set, `price` is derived:
+   * F = (W*R + W*R*P/100 + carats*rate + S) * 1.03, with R the rate of `metal` from settings.
+   * Null = fixed price.
+   */
+  @Column({ type: 'numeric', precision: 10, scale: 3, nullable: true, transformer: numeric })
+  netMetalWeight: number | null;
+
+  /** gold | silver | platinum: picks which rate in settings applies. */
+  @Column({ type: 'varchar', length: 10, default: 'gold' })
+  metal: Metal;
+
+  /** Total diamond weight in carats. */
+  @Column({ type: 'numeric', precision: 8, scale: 3, default: 0, transformer: numeric })
+  diamondCarats: number;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numeric })
+  diamondRatePerCarat: number;
+
+  /** P: making charge, percent of the metal value. */
+  @Column({ type: 'numeric', precision: 5, scale: 2, default: 0, transformer: numeric })
+  makingChargePercent: number;
+
+  /** Other stones, flat amount. */
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0, transformer: numeric })
+  stoneCharges: number;
 
   /** Id the product had in the original catalog file. Unique, so seeding is repeatable. */
   @Index({ unique: true })
