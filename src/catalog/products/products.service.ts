@@ -69,8 +69,8 @@ export class ProductsService {
   async repriceMetals(): Promise<number> {
     const items = await this.repo.find({ where: { netMetalWeight: Not(IsNull()) }, relations: { category: true, stock: true } });
     for (const product of items) {
-      const price = this.formulaPrice(product);
-      if (price === undefined || price === product.price) continue;
+      const price = this.formulaPrice(product) ?? null;
+      if (price === product.price) continue;
       await this.repo.update(product.id, { price });
       product.price = price;
       await this.redis.forget(slugKey(product.slug));
@@ -89,7 +89,7 @@ export class ProductsService {
         const product = await manager.save(
           manager.create(Product, {
             ...fields,
-            price: this.formulaPrice(fields) ?? fields.price,
+            price: this.formulaPrice(fields) ?? null,
             slug: fields.slug ?? slugify(fields.name),
           }),
         );
@@ -209,9 +209,10 @@ export class ProductsService {
     const existing = await this.findOne(id);
     if (dto.categoryId) await this.categories.findOne(dto.categoryId);
     const merged = { ...existing, ...dto };
-    const price = this.formulaPrice(merged);
+    // The price is never typed in: it follows the metal rate. No weight or no rate = price on request.
+    const price = this.formulaPrice(merged) ?? null;
     try {
-      await this.repo.update(id, price === undefined ? dto : { ...dto, price });
+      await this.repo.update(id, { ...dto, price });
     } catch (err) {
       rethrowDbError(err, 'Product sku or slug already exists');
     }

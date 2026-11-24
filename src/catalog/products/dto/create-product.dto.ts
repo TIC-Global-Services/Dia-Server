@@ -10,10 +10,8 @@ export const createProductSchema = z.object({
   name: z.string().trim().min(1).max(200),
   slug: slugSchema.optional(),
   description: z.string().max(20000).nullish(),
-  /** Omit for price on request. */
-  price: money.nullish(),
   compareAtPrice: money.nullish(),
-  /** Net metal weight (g). When set, price is calculated from the metal rate and `price` is ignored. */
+  /** Net metal weight (g). The price is always calculated from it and the metal rate; without it the piece is price on request. */
   netMetalWeight: z.number().positive().max(100_000).multipleOf(0.001).nullish(),
   metal: z.enum(METALS).default('gold'),
   diamondCarats: z.number().min(0).max(10_000).multipleOf(0.001).default(0),

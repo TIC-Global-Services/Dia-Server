@@ -7,7 +7,6 @@ export const updateProductSchema = z.object({
   name: createProductSchema.shape.name.optional(),
   slug: createProductSchema.shape.slug,
   description: createProductSchema.shape.description,
-  price: createProductSchema.shape.price,
   compareAtPrice: createProductSchema.shape.compareAtPrice,
   netMetalWeight: createProductSchema.shape.netMetalWeight,
   metal: createProductSchema.shape.metal.unwrap().optional(),
